@@ -172,10 +172,23 @@ def wedding_budget_app():
 
     # Logout button
     if st.button("Logout"):
-        # Clear session state and redirect to login
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
-        st.session_state["refresh"] = not st.session_state.get("refresh", False)
+        # Clear only the app-related session state variables
+        keys_to_clear = [
+            "categories",
+            "estimated_budgets",
+            "actual_budgets",
+            "notes",
+            "paid_by",
+            "payment_done",
+            "refresh",
+        ]
+        for key in keys_to_clear:
+            if key in st.session_state:
+                del st.session_state[key]
+
+        # Reset the connected state to False to show the login button
+        st.session_state["connected"] = False
+        st.success("Logout effettuato con successo. Effettua nuovamente il login.")
 
     if not st.session_state.get("connected", False):
         st.warning("Effettua il login per accedere all'app.")

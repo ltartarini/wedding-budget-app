@@ -10,6 +10,7 @@ from authlib.integrations.requests_client import OAuth2Session
 GOOGLE_CLIENT_ID = st.secrets["google_oauth_credentials"]["google_client_id"]
 GOOGLE_CLIENT_SECRET = st.secrets["google_oauth_credentials"]["google_client_secret"]
 REDIRECT_URI = "https://borgiarini.streamlit.app"
+# REDIRECT_URI = "http://localhost:8501" # Update this for production
 
 # File path to store categories and values in JSON format
 FILE_PATH = st.secrets["data"]["file_path"]
@@ -49,17 +50,27 @@ def authenticate_with_google():
 
     # Check if the user is already authenticated
     if "token" not in st.session_state:
-        # Generate the authorization URL
-        authorization_url, state = oauth.create_authorization_url(
-            "https://accounts.google.com/o/oauth2/auth"
-        )
-        st.session_state["oauth_state"] = state
-        st.markdown(f"[Login with Google]({authorization_url})")
-        st.stop()
+        # Check if the app is redirected back with an authorization code
+        if "code" in st.experimental_get_query_params():
+            code = st.experimental_get_query_params()["code"]
+            token = oauth.fetch_token(
+                "https://oauth2.googleapis.com/token",
+                code=code,
+                grant_type="authorization_code"
+            )
+            st.session_state["token"] = token
+            st.experimental_set_query_params()  # Clear the query parameters
+        else:
+            # Generate the authorization URL
+            authorization_url, state = oauth.create_authorization_url(
+                "https://accounts.google.com/o/oauth2/auth"
+            )
+            st.session_state["oauth_state"] = state
+            st.markdown(f"[Login with Google]({authorization_url})")
+            st.stop()
 
     # If the user is authenticated, fetch their profile
-    token = st.session_state["token"]
-    oauth.token = token
+    oauth.token = st.session_state["token"]
     user_info = oauth.get("https://www.googleapis.com/oauth2/v3/userinfo").json()
     return user_info
 

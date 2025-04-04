@@ -10,9 +10,11 @@ from dotenv import load_dotenv
 from auth import Authenticator
 
 # Google OAuth credentials
+ALLOWED_USERS = st.secrets["google_oauth_credentials"]["allowed_users"]
 GOOGLE_CLIENT_ID = st.secrets["google_oauth_credentials"]["google_client_id"]
 GOOGLE_CLIENT_SECRET = st.secrets["google_oauth_credentials"]["google_client_secret"]
 REDIRECT_URI = st.secrets["google_oauth_credentials"]["redirect_uri"]
+TOKEN_KEY = st.secrets["google_oauth_credentials"]["token_key"]
 
 load_dotenv()
 

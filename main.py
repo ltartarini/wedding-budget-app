@@ -59,7 +59,7 @@ def authenticate_with_google():
                 grant_type="authorization_code"
             )
             st.session_state["token"] = token
-            st.experimental_set_query_params()  # Clear the query parameters
+            st.set_query_params()  # Clear the query parameters
         else:
             # Generate the authorization URL
             authorization_url, state = oauth.create_authorization_url(

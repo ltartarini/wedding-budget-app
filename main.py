@@ -3,10 +3,16 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import json
 import os
-import math  # Import math to check for NaN values
+import math
+from authlib.integrations.requests_client import OAuth2Session
+
+# Google OAuth credentials
+GOOGLE_CLIENT_ID = st.secrets["google_oauth_credentials"]["google_client_id"]
+GOOGLE_CLIENT_SECRET = st.secrets["google_oauth_credentials"]["google_client_secret"]
+REDIRECT_URI = "https://borgiarini.streamlit.app"
 
 # File path to store categories and values in JSON format
-FILE_PATH = "wedding_budget_data.json"
+FILE_PATH = st.secrets["data"]["file_path"]
 
 # Function to load data from JSON
 def load_data():
@@ -32,187 +38,129 @@ def save_data(categories, estimated_budgets, actual_budgets, notes):
     with open(FILE_PATH, mode='w') as file:
         json.dump(data, file, indent=4)
 
-# Function to synchronize session state arrays
-def synchronize_session_state():
-    max_length = max(
-        len(st.session_state['categories']),
-        len(st.session_state['estimated_budgets']),
-        len(st.session_state['actual_budgets']),
-        len(st.session_state['notes'])
+# Function to authenticate with Google SSO
+def authenticate_with_google():
+    oauth = OAuth2Session(
+        client_id=GOOGLE_CLIENT_ID,
+        client_secret=GOOGLE_CLIENT_SECRET,
+        redirect_uri=REDIRECT_URI,
+        scope=["openid", "email", "profile"]
     )
-    # Extend all arrays to the same length
-    st.session_state['categories'].extend([""] * (max_length - len(st.session_state['categories'])))
-    st.session_state['estimated_budgets'].extend([0] * (max_length - len(st.session_state['estimated_budgets'])))
-    st.session_state['actual_budgets'].extend([0] * (max_length - len(st.session_state['actual_budgets'])))
-    st.session_state['notes'].extend([""] * (max_length - len(st.session_state['notes'])))
 
-# Function to clean NaN values
-def clean_nan_values():
-    for i in range(len(st.session_state['estimated_budgets'])):
-        if math.isnan(st.session_state['estimated_budgets'][i]):
-            st.session_state['estimated_budgets'][i] = 0
-        if math.isnan(st.session_state['actual_budgets'][i]):
-            st.session_state['actual_budgets'][i] = 0
+    # Check if the user is already authenticated
+    if "token" not in st.session_state:
+        # Generate the authorization URL
+        authorization_url, state = oauth.create_authorization_url(
+            "https://accounts.google.com/o/oauth2/auth"
+        )
+        st.session_state["oauth_state"] = state
+        st.markdown(f"[Login with Google]({authorization_url})")
+        st.stop()
 
-# Function to ensure no NaN values in session state
-def ensure_no_nan():
-    st.session_state['estimated_budgets'] = [
-        0 if math.isnan(x) else x for x in st.session_state['estimated_budgets']
-    ]
-    st.session_state['actual_budgets'] = [
-        0 if math.isnan(x) else x for x in st.session_state['actual_budgets']
-    ]
+    # If the user is authenticated, fetch their profile
+    token = st.session_state["token"]
+    oauth.token = token
+    user_info = oauth.get("https://www.googleapis.com/oauth2/v3/userinfo").json()
+    return user_info
 
 # Function to display the app
 def wedding_budget_app():
     st.title("Pianificatore Budget Matrimonio")
 
-    # Load data from JSON file if available
-    categories, estimated_budgets, actual_budgets, notes = load_data()
+    # Authenticate with Google SSO
+    user_info = authenticate_with_google()
 
-    # Store data in session state for editing
-    st.session_state['categories'] = categories
-    st.session_state['estimated_budgets'] = estimated_budgets
-    st.session_state['actual_budgets'] = actual_budgets
-    st.session_state['notes'] = notes
+    if user_info:
+        st.success(f"Benvenuto, {user_info['name']}!")
+        st.write(f"Email: {user_info['email']}")
 
-    # Synchronize session state arrays
-    synchronize_session_state()
+        # Load data from JSON file if available
+        categories, estimated_budgets, actual_budgets, notes = load_data()
 
-    # Clean NaN values
-    clean_nan_values()
+        # Store data in session state for editing
+        st.session_state['categories'] = categories
+        st.session_state['estimated_budgets'] = estimated_budgets
+        st.session_state['actual_budgets'] = actual_budgets
+        st.session_state['notes'] = notes
 
-    # Ensure no NaN values in session state
-    ensure_no_nan()
+        # Synchronize session state arrays
+        synchronize_session_state()
 
-    # Input for custom category name and budget
-    st.subheader("Aggiungi una Categoria Personalizzata")
-    new_category = st.text_input("Nome Categoria")
-    new_estimated_budget = st.number_input("Budget Stimato (€)", min_value=0, value=0)
-    new_actual_budget = st.number_input("Budget Reale (€)", min_value=0, value=0)
-    new_note = st.text_input("Note")
+        # Clean NaN values
+        clean_nan_values()
 
-    # Add the category if fields are filled
-    if st.button("Aggiungi Categoria"):
-        if new_category and new_estimated_budget >= 0:
-            st.session_state['categories'].append(new_category)
-            st.session_state['estimated_budgets'].append(new_estimated_budget)
-            st.session_state['actual_budgets'].append(new_actual_budget)
-            st.session_state['notes'].append(new_note)
-            save_data(
-                st.session_state['categories'],
-                st.session_state['estimated_budgets'],
-                st.session_state['actual_budgets'],
-                st.session_state['notes']
-            )
-            st.success(f"Categoria '{new_category}' aggiunta con successo!")
+        # Ensure no NaN values in session state
+        ensure_no_nan()
 
-    # Display current categories and budgets in a table
-    st.subheader("Categorie Aggiunte")
-    if len(st.session_state['categories']) > 0:
-        # Calculate differences and percentages
-        differences = [
-            actual - estimated
-            for actual, estimated in zip(st.session_state['actual_budgets'], st.session_state['estimated_budgets'])
-        ]
+        # Input for custom category name and budget
+        st.subheader("Aggiungi una Categoria Personalizzata")
+        new_category = st.text_input("Nome Categoria")
+        new_estimated_budget = st.number_input("Budget Stimato (€)", min_value=0, value=0)
+        new_actual_budget = st.number_input("Budget Reale (€)", min_value=0, value=0)
+        new_note = st.text_input("Note")
+
+        # Add the category if fields are filled
+        if st.button("Aggiungi Categoria"):
+            if new_category and new_estimated_budget >= 0:
+                st.session_state['categories'].append(new_category)
+                st.session_state['estimated_budgets'].append(new_estimated_budget)
+                st.session_state['actual_budgets'].append(new_actual_budget)
+                st.session_state['notes'].append(new_note)
+                save_data(
+                    st.session_state['categories'],
+                    st.session_state['estimated_budgets'],
+                    st.session_state['actual_budgets'],
+                    st.session_state['notes']
+                )
+                st.success(f"Categoria '{new_category}' aggiunta con successo!")
+
+        # Display current categories and budgets in a table
+        st.subheader("Categorie Aggiunte")
+        if len(st.session_state['categories']) > 0:
+            # Calculate differences and percentages
+            differences = [
+                actual - estimated
+                for actual, estimated in zip(st.session_state['actual_budgets'], st.session_state['estimated_budgets'])
+            ]
+            total_budget = sum(st.session_state['estimated_budgets'])
+            percentages = [
+                (estimated / total_budget * 100) if total_budget > 0 else 0
+                for estimated in st.session_state['estimated_budgets']
+            ]
+
+            # Create a DataFrame for the table
+            data = {
+                "Categoria": st.session_state['categories'],
+                "Budget Stimato (€)": st.session_state['estimated_budgets'],
+                "Budget Reale (€)": st.session_state['actual_budgets'],
+                "Differenza (€)": differences,
+                "% sul Totale": [f"{p:.2f}%" for p in percentages],
+                "Note": st.session_state['notes']
+            }
+            df = pd.DataFrame(data)
+            st.table(df)  # Display the table
+
+        else:
+            st.write("Nessuna categoria aggiunta ancora.")
+
+        # Calculate total budget
         total_budget = sum(st.session_state['estimated_budgets'])
-        percentages = [
-            (estimated / total_budget * 100) if total_budget > 0 else 0
-            for estimated in st.session_state['estimated_budgets']
-        ]
+        st.subheader(f"Totale Budget Stimato: € {total_budget:,.2f}")
 
-        # Create a DataFrame for the table
-        data = {
-            "Categoria": st.session_state['categories'],
-            "Budget Stimato (€)": st.session_state['estimated_budgets'],
-            "Budget Reale (€)": st.session_state['actual_budgets'],
-            "Differenza (€)": differences,
-            "% sul Totale": [f"{p:.2f}%" for p in percentages],
-            "Note": st.session_state['notes']
-        }
-        df = pd.DataFrame(data)
-        st.table(df)  # Display the table
-
-        # Allow editing and removing of categories
-        for idx, category in enumerate(st.session_state['categories']):
-            st.write(f"Modifica per '{category}':")
-            
-            # Editable fields for estimated budget, actual budget, and notes
-            new_estimated_budget = st.number_input(
-                f"Nuovo Budget Stimato (€) per '{category}'", 
-                min_value=0, 
-                value=st.session_state['estimated_budgets'][idx], 
-                key=f"estimated_budget_{idx}"
+        # Create pie chart with the current categories and values
+        if len(st.session_state['categories']) > 0:
+            fig, ax = plt.subplots(figsize=(8, 8))
+            ax.pie(
+                st.session_state['estimated_budgets'],
+                labels=st.session_state['categories'],
+                autopct='%1.1f%%',
+                startangle=140
             )
-            new_actual_budget = st.number_input(
-                f"Nuovo Budget Reale (€) per '{category}'", 
-                min_value=0, 
-                value=st.session_state['actual_budgets'][idx], 
-                key=f"actual_budget_{idx}"
-            )
-            new_note = st.text_input(
-                f"Nuove Note per '{category}'", 
-                value=st.session_state['notes'][idx], 
-                key=f"note_{idx}"
-            )
-
-            # Save changes for the current category
-            if st.button(f"Salva Modifiche per '{category}'", key=f"save_{category}"):
-                st.session_state['estimated_budgets'][idx] = new_estimated_budget
-                st.session_state['actual_budgets'][idx] = new_actual_budget
-                st.session_state['notes'][idx] = new_note
-                save_data(
-                    st.session_state['categories'],
-                    st.session_state['estimated_budgets'],
-                    st.session_state['actual_budgets'],
-                    st.session_state['notes']
-                )
-                st.success(f"Modifiche salvate per '{category}'!")
-                # Refresh the app to update the table
-                st.rerun()
-
-            # Add a button to remove the category
-            if st.button(f"Rimuovi '{category}'", key=f"remove_{category}"):
-                del st.session_state['categories'][idx]
-                del st.session_state['estimated_budgets'][idx]
-                del st.session_state['actual_budgets'][idx]
-                del st.session_state['notes'][idx]
-                save_data(
-                    st.session_state['categories'],
-                    st.session_state['estimated_budgets'],
-                    st.session_state['actual_budgets'],
-                    st.session_state['notes']
-                )
-                st.success(f"Categoria '{category}' rimossa con successo!")
-                # Trigger a refresh by modifying a dummy session state variable
-                if "refresh" not in st.session_state:
-                    st.session_state["refresh"] = 0
-                st.session_state["refresh"] += 1
+            ax.set_title("Distribuzione Budget Matrimonio")
+            st.pyplot(fig)
 
     else:
-        st.write("Nessuna categoria aggiunta ancora.")
-
-    # Calculate total budget
-    total_budget = sum(st.session_state['estimated_budgets'])
-    st.subheader(f"Totale Budget Stimato: € {total_budget:,.2f}")
-
-    # Create pie chart with the current categories and values
-    if len(st.session_state['categories']) > 0:
-        fig, ax = plt.subplots(figsize=(8, 8))
-        ax.pie(
-            st.session_state['estimated_budgets'],
-            labels=st.session_state['categories'],
-            autopct='%1.1f%%',
-            startangle=140
-        )
-        ax.set_title("Distribuzione Budget Matrimonio")
-        st.pyplot(fig)
-
-    # Trigger a refresh by modifying a dummy session state variable
-    if "refresh" not in st.session_state:
-        st.session_state["refresh"] = 0
-
-    st.session_state["refresh"] += 1
+        st.warning("Effettua il login per accedere all'app.")
 
 # Run the app
 wedding_budget_app()

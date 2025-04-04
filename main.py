@@ -70,7 +70,7 @@ storage_client = storage.Client(credentials=credentials, project=service_account
 
 # Initialize the Google Cloud Storage client
 GCS_BUCKET_NAME = st.secrets["gcs"]["bucket_name"]
-GCS_FILE_NAME = st.secrets["gcs"]["data.json"]
+GCS_FILE_NAME = st.secrets["gcs"]["file_name"]
 
 bucket = storage_client.bucket(GCS_BUCKET_NAME)
 blob = bucket.blob(GCS_FILE_NAME)

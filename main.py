@@ -4,16 +4,43 @@ import pandas as pd
 import json
 import os
 import math
-from authlib.integrations.requests_client import OAuth2Session
+import webbrowser
+import os
+from dotenv import load_dotenv
+from auth import Authenticator
 
 # Google OAuth credentials
 GOOGLE_CLIENT_ID = st.secrets["google_oauth_credentials"]["google_client_id"]
 GOOGLE_CLIENT_SECRET = st.secrets["google_oauth_credentials"]["google_client_secret"]
-REDIRECT_URI = "https://borgiarini.streamlit.app"
-# REDIRECT_URI = "http://localhost:8501" # Update this for production
+REDIRECT_URI = st.secrets["google_oauth_credentials"]["redirect_uri"]
+
+load_dotenv()
+
+# emails of users that are allowed to login
+allowed_users = os.getenv("ALLOWED_USERS").split(",")
+
+redirect_uri = os.environ.get("REDIRECT_URI", "http://localhost:8501/")
 
 # File path to store categories and values in JSON format
 FILE_PATH = st.secrets["data"]["file_path"]
+
+CLIENT_CONFIG = {'web': {
+    'client_id': st.secrets["google_oauth_credentials"]["google_client_id"],
+    'project_id': st.secrets["google_oauth_credentials"]["project_id"],
+    'auth_uri': 'https://accounts.google.com/o/oauth2/auth',
+    'token_uri': 'https://oauth2.googleapis.com/token',
+    'auth_provider_x509_cert_url': 'https://www.googleapis.com/oauth2/v1/certs',
+    'client_secret':  st.secrets["google_oauth_credentials"]["google_client_secret"],
+    'redirect_uris': ["http://localhost:8501/","https://borgiarini.streamlit.app"]}}
+
+authenticator = Authenticator(
+    allowed_users=allowed_users,
+    token_key=os.getenv("TOKEN_KEY"),
+    client_config=CLIENT_CONFIG,
+    redirect_uri=redirect_uri,
+)
+authenticator.check_auth()
+authenticator.login()
 
 # Function to load data from JSON
 def load_data():
@@ -39,51 +66,17 @@ def save_data(categories, estimated_budgets, actual_budgets, notes):
     with open(FILE_PATH, mode='w') as file:
         json.dump(data, file, indent=4)
 
-# Function to authenticate with Google SSO
-def authenticate_with_google():
-    oauth = OAuth2Session(
-        client_id=GOOGLE_CLIENT_ID,
-        client_secret=GOOGLE_CLIENT_SECRET,
-        redirect_uri=REDIRECT_URI,
-        scope=["openid", "email", "profile"]
-    )
-
-    # Check if the user is already authenticated
-    if "token" not in st.session_state:
-        # Check if the app is redirected back with an authorization code
-        if "code" in st.query_params:
-            code = st.query_params["code"]
-            token = oauth.fetch_token(
-                "https://oauth2.googleapis.com/token",
-                code=code,
-                grant_type="authorization_code"
-            )
-            st.session_state["token"] = token
-            st.set_query_params()  # Clear the query parameters
-        else:
-            # Generate the authorization URL
-            authorization_url, state = oauth.create_authorization_url(
-                "https://accounts.google.com/o/oauth2/auth"
-            )
-            st.session_state["oauth_state"] = state
-            st.markdown(f"[Login with Google]({authorization_url})")
-            st.stop()
-
-    # If the user is authenticated, fetch their profile
-    oauth.token = st.session_state["token"]
-    user_info = oauth.get("https://www.googleapis.com/oauth2/v3/userinfo").json()
-    return user_info
-
 # Function to display the app
 def wedding_budget_app():
     st.title("Pianificatore Budget Matrimonio")
 
-    # Authenticate with Google SSO
-    user_info = authenticate_with_google()
+    if not st.session_state["connected"]:
+        st.write("You have to log in first...")
 
-    if user_info:
-        st.success(f"Benvenuto, {user_info['name']}!")
-        st.write(f"Email: {user_info['email']}")
+    if st.session_state["connected"]:
+        st.write(f"Welcome! {st.session_state['user_info'].get('email')}")
+        if st.button("Log out"):
+            authenticator.logout()
 
         # Load data from JSON file if available
         categories, estimated_budgets, actual_budgets, notes = load_data()
@@ -93,15 +86,6 @@ def wedding_budget_app():
         st.session_state['estimated_budgets'] = estimated_budgets
         st.session_state['actual_budgets'] = actual_budgets
         st.session_state['notes'] = notes
-
-        # Synchronize session state arrays
-        synchronize_session_state()
-
-        # Clean NaN values
-        clean_nan_values()
-
-        # Ensure no NaN values in session state
-        ensure_no_nan()
 
         # Input for custom category name and budget
         st.subheader("Aggiungi una Categoria Personalizzata")

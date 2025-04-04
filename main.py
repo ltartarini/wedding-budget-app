@@ -21,8 +21,8 @@ def load_data():
         with open(FILE_PATH, mode='r') as file:
             data = json.load(file)
             categories = data.get('categories', [])
-            estimated_budgets = data.get('estimated_budgets', [])
-            actual_budgets = data.get('actual_budgets', [])
+            estimated_budgets = [int(budget) for budget in data.get('estimated_budgets', [])]
+            actual_budgets = [int(budget) for budget in data.get('actual_budgets', [])]
             notes = data.get('notes', [])
             return categories, estimated_budgets, actual_budgets, notes
     else:
@@ -106,8 +106,12 @@ def wedding_budget_app():
         # Input for custom category name and budget
         st.subheader("Aggiungi una Categoria Personalizzata")
         new_category = st.text_input("Nome Categoria")
-        new_estimated_budget = st.number_input("Budget Stimato (€)", min_value=0, value=0)
-        new_actual_budget = st.number_input("Budget Reale (€)", min_value=0, value=0)
+        new_estimated_budget = st.number_input(
+            "Budget Stimato (€)", min_value=0, value=int(st.session_state.get('new_estimated_budget', 0))
+        )
+        new_actual_budget = st.number_input(
+            "Budget Reale (€)", min_value=0, value=int(st.session_state.get('new_actual_budget', 0))
+        )
         new_note = st.text_input("Note")
 
         # Add the category if fields are filled
@@ -130,12 +134,12 @@ def wedding_budget_app():
         if len(st.session_state['categories']) > 0:
             # Calculate differences and percentages
             differences = [
-                actual - estimated
+                float(actual) - float(estimated)
                 for actual, estimated in zip(st.session_state['actual_budgets'], st.session_state['estimated_budgets'])
             ]
-            total_budget = sum(st.session_state['estimated_budgets'])
+            total_budget = sum(float(budget) for budget in st.session_state['estimated_budgets'])
             percentages = [
-                (estimated / total_budget * 100) if total_budget > 0 else 0
+                (float(estimated) / total_budget * 100) if total_budget > 0 else 0
                 for estimated in st.session_state['estimated_budgets']
             ]
 

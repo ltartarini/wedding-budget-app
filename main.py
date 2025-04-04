@@ -86,6 +86,19 @@ def decrypt_data(encrypted_data):
     decrypted_data = fernet.decrypt(encrypted_data).decode("utf-8")
     return json.loads(decrypted_data)
 
+# Function to ensure equal lengths of arrays
+def ensure_equal_lengths(*arrays):
+    """
+    Ensure all arrays have the same length by padding with default values.
+    """
+    max_length = max(len(arr) for arr in arrays)
+    for arr in arrays:
+        while len(arr) < max_length:
+            if isinstance(arr, list):
+                arr.append("")  # Default value for strings
+            elif isinstance(arr, int):
+                arr.append(0)  # Default value for numbers
+
 # Function to load data from the encrypted JSON file
 def load_data():
     try:
@@ -204,6 +217,15 @@ def wedding_budget_app():
     # Display current categories and budgets in a table
     st.subheader("Categorie Aggiunte")
     if len(st.session_state["categories"]) > 0:
+        # Ensure all arrays have the same length
+        ensure_equal_lengths(
+            st.session_state["categories"],
+            st.session_state["estimated_budgets"],
+            st.session_state["actual_budgets"],
+            st.session_state["notes"],
+            st.session_state["paid_by"],
+        )
+
         # Create a DataFrame for the table
         data = {
             "Categoria": st.session_state["categories"],

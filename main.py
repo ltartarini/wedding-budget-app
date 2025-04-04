@@ -254,6 +254,19 @@ def wedding_budget_app():
             mime="text/csv",
         )
 
+        # Display the pie chart for "Budget Stimato (€)"
+        st.subheader("Distribuzione Budget Stimato")
+        if len(st.session_state["categories"]) > 0:
+            fig, ax = plt.subplots(figsize=(8, 8))
+            ax.pie(
+                st.session_state["estimated_budgets"],
+                labels=st.session_state["categories"],
+                autopct="%1.1f%%",
+                startangle=140,
+            )
+            ax.set_title("Distribuzione Budget Stimato (€)")
+            st.pyplot(fig)
+
         # Editable fields for each category
         for idx, category in enumerate(st.session_state["categories"]):
             st.write(f"**Modifica Categoria {idx + 1}: {category}**")

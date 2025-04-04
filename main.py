@@ -51,8 +51,8 @@ def authenticate_with_google():
     # Check if the user is already authenticated
     if "token" not in st.session_state:
         # Check if the app is redirected back with an authorization code
-        if "code" in st.experimental_get_query_params():
-            code = st.experimental_get_query_params()["code"]
+        if "code" in st.query_params:
+            code = st.query_params["code"]
             token = oauth.fetch_token(
                 "https://oauth2.googleapis.com/token",
                 code=code,

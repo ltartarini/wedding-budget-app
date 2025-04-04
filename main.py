@@ -9,7 +9,7 @@ from authlib.integrations.requests_client import OAuth2Session
 # Google OAuth credentials
 GOOGLE_CLIENT_ID = st.secrets["google_oauth_credentials"]["google_client_id"]
 GOOGLE_CLIENT_SECRET = st.secrets["google_oauth_credentials"]["google_client_secret"]
-REDIRECT_URI = "https://borgiarini.streamlit.app"
+REDIRECT_URI = "https://borgiarini.streamlit.app/oauth2/callback"
 # REDIRECT_URI = "http://localhost:8501" # Update this for production
 
 # File path to store categories and values in JSON format

@@ -271,6 +271,7 @@ def wedding_budget_app():
         for idx, category in enumerate(st.session_state["categories"]):
             st.write(f"**Modifica Categoria {idx + 1}: {category}**")
 
+            # Editable fields for each category
             new_category_name = st.text_input(
                 f"Modifica Nome Categoria {idx + 1}",
                 value=category,
@@ -304,21 +305,48 @@ def wedding_budget_app():
                 key=f"payment_done_{idx}",
             )
 
-            # Automatically save changes when fields are modified
-            st.session_state["categories"][idx] = new_category_name
-            st.session_state["estimated_budgets"][idx] = new_estimated_budget
-            st.session_state["actual_budgets"][idx] = new_actual_budget
-            st.session_state["notes"][idx] = new_note
-            st.session_state["paid_by"][idx] = new_paid_by
-            st.session_state["payment_done"][idx] = new_payment_done
-            save_data(
-                st.session_state["categories"],
-                st.session_state["estimated_budgets"],
-                st.session_state["actual_budgets"],
-                st.session_state["notes"],
-                st.session_state["paid_by"],
-                st.session_state["payment_done"],
-            )
+            # Save changes button
+            if st.button(f"Salva Modifiche per {category}", key=f"save_{idx}"):
+                # Update session state with new values
+                st.session_state["categories"][idx] = new_category_name
+                st.session_state["estimated_budgets"][idx] = new_estimated_budget
+                st.session_state["actual_budgets"][idx] = new_actual_budget
+                st.session_state["notes"][idx] = new_note
+                st.session_state["paid_by"][idx] = new_paid_by
+                st.session_state["payment_done"][idx] = new_payment_done
+
+                # Save data to GCS
+                save_data(
+                    st.session_state["categories"],
+                    st.session_state["estimated_budgets"],
+                    st.session_state["actual_budgets"],
+                    st.session_state["notes"],
+                    st.session_state["paid_by"],
+                    st.session_state["payment_done"],
+                )
+                st.success(f"Modifiche salvate per la categoria '{new_category_name}'!")
+
+            # Remove category button
+            if st.button(f"Rimuovi {category}", key=f"remove_{idx}"):
+                # Remove the category and associated data
+                del st.session_state["categories"][idx]
+                del st.session_state["estimated_budgets"][idx]
+                del st.session_state["actual_budgets"][idx]
+                del st.session_state["notes"][idx]
+                del st.session_state["paid_by"][idx]
+                del st.session_state["payment_done"][idx]
+
+                # Save updated data to GCS
+                save_data(
+                    st.session_state["categories"],
+                    st.session_state["estimated_budgets"],
+                    st.session_state["actual_budgets"],
+                    st.session_state["notes"],
+                    st.session_state["paid_by"],
+                    st.session_state["payment_done"],
+                )
+                st.success(f"Categoria '{category}' rimossa con successo!")
+                st.experimental_rerun()  # Refresh the app
 
     else:
         st.write("Nessuna categoria aggiunta ancora.")

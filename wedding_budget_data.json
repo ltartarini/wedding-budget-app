@@ -1,0 +1,22 @@
+{
+    "categories": [
+        "Categoria 1",
+        "Categoria 2",
+        "Categoria 3"
+    ],
+    "estimated_budgets": [
+        10000,
+        2000,
+        1750
+    ],
+    "actual_budgets": [
+        10000,
+        2000,
+        1500
+    ],
+    "notes": [
+        "Test",
+        "Test",
+        "Test"
+    ]
+}

@@ -14,7 +14,9 @@ ALLOWED_USERS = st.secrets["google_oauth_credentials"]["allowed_users"]
 GOOGLE_CLIENT_ID = st.secrets["google_oauth_credentials"]["google_client_id"]
 GOOGLE_CLIENT_SECRET = st.secrets["google_oauth_credentials"]["google_client_secret"]
 REDIRECT_URI = st.secrets["google_oauth_credentials"]["redirect_uri"]
+os.environ['REDIRECT_URI'] = REDIRECT_URI
 TOKEN_KEY = st.secrets["google_oauth_credentials"]["token_key"]
+os.environ['TOKEN_KEY'] = TOKEN_KEY
 
 load_dotenv()
 

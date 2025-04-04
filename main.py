@@ -64,6 +64,9 @@ def load_data():
     if os.path.exists(FILE_PATH):
         with open(FILE_PATH, "rb") as file:
             encrypted_data = file.read()
+            if not encrypted_data:  # Handle empty file
+                st.warning("Il file è vuoto. Inizializzazione dei dati.")
+                return [], [], [], []
             try:
                 data = decrypt_data(encrypted_data)
                 categories = data.get("categories", [])
@@ -71,8 +74,11 @@ def load_data():
                 actual_budgets = [int(budget) for budget in data.get("actual_budgets", [])]
                 notes = data.get("notes", [])
                 return categories, estimated_budgets, actual_budgets, notes
+            except json.JSONDecodeError:
+                st.error("Errore durante la lettura del file JSON. Il file potrebbe essere corrotto.")
+                return [], [], [], []
             except Exception as e:
-                st.error("Errore durante la decrittazione del file. Verifica la chiave segreta.")
+                st.error(f"Errore durante la decrittazione del file: {e}")
                 return [], [], [], []
     else:
         return [], [], [], []

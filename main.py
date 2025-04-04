@@ -97,16 +97,17 @@ def load_data():
             estimated_budgets = [int(budget) for budget in data.get("estimated_budgets", [])]
             actual_budgets = [int(budget) for budget in data.get("actual_budgets", [])]
             notes = data.get("notes", [])
-            return categories, estimated_budgets, actual_budgets, notes
+            paid_by = data.get("paid_by", [])
+            return categories, estimated_budgets, actual_budgets, notes, paid_by
         else:
             st.warning("No data found in GCS. Initializing empty data.")
-            return [], [], [], []
+            return [], [], [], [], []
     except Exception as e:
         st.error(f"Error loading data from GCS: {e}")
-        return [], [], [], []
+        return [], [], [], [], []
 
 # Function to save data to the encrypted JSON file
-def save_data(categories, estimated_budgets, actual_budgets, notes):
+def save_data(categories, estimated_budgets, actual_budgets, notes, paid_by):
     """
     Save the data to the encrypted JSON file in GCS.
     """
@@ -115,6 +116,7 @@ def save_data(categories, estimated_budgets, actual_budgets, notes):
         "estimated_budgets": estimated_budgets,
         "actual_budgets": actual_budgets,
         "notes": notes,
+        "paid_by": paid_by,
     }
     try:
         # Encrypt the data
@@ -144,6 +146,7 @@ def export_to_csv():
         "Budget Stimato (€)": st.session_state["estimated_budgets"],
         "Budget Reale (€)": st.session_state["actual_budgets"],
         "Note": st.session_state["notes"],
+        "Pagato Da": st.session_state["paid_by"],
     }
     df = pd.DataFrame(data)
     return df.to_csv(index=False).encode("utf-8")
@@ -164,13 +167,14 @@ def wedding_budget_app():
         return
 
     # Load data from JSON file if available
-    categories, estimated_budgets, actual_budgets, notes = load_data()
+    categories, estimated_budgets, actual_budgets, notes, paid_by = load_data()
 
     # Store data in session state for editing
     st.session_state["categories"] = categories
     st.session_state["estimated_budgets"] = estimated_budgets
     st.session_state["actual_budgets"] = actual_budgets
     st.session_state["notes"] = notes
+    st.session_state["paid_by"] = paid_by
 
     # Input for custom category name and budget
     st.subheader("Aggiungi una Categoria Personalizzata")
@@ -178,6 +182,7 @@ def wedding_budget_app():
     new_estimated_budget = st.number_input("Budget Stimato (€)", min_value=0, value=0)
     new_actual_budget = st.number_input("Budget Reale (€)", min_value=0, value=0)
     new_note = st.text_input("Note")
+    new_paid_by = st.text_input("Pagato Da")
 
     # Add the category if fields are filled
     if st.button("Aggiungi Categoria"):
@@ -186,11 +191,13 @@ def wedding_budget_app():
             st.session_state["estimated_budgets"].append(new_estimated_budget)
             st.session_state["actual_budgets"].append(new_actual_budget)
             st.session_state["notes"].append(new_note)
+            st.session_state["paid_by"].append(new_paid_by)
             save_data(
                 st.session_state["categories"],
                 st.session_state["estimated_budgets"],
                 st.session_state["actual_budgets"],
                 st.session_state["notes"],
+                st.session_state["paid_by"],
             )
             st.success(f"Categoria '{new_category}' aggiunta con successo!")
 
@@ -203,6 +210,7 @@ def wedding_budget_app():
             "Budget Stimato (€)": st.session_state["estimated_budgets"],
             "Budget Reale (€)": st.session_state["actual_budgets"],
             "Note": st.session_state["notes"],
+            "Pagato Da": st.session_state["paid_by"],
         }
         df = pd.DataFrame(data)
         st.table(df)  # Display the table
@@ -242,17 +250,24 @@ def wedding_budget_app():
                 value=st.session_state["notes"][idx],
                 key=f"note_{idx}",
             )
+            new_paid_by = st.text_input(
+                f"Modifica Pagato Da per {category}",
+                value=st.session_state["paid_by"][idx],
+                key=f"paid_by_{idx}",
+            )
 
             # Automatically save changes when fields are modified
             st.session_state["categories"][idx] = new_category_name
             st.session_state["estimated_budgets"][idx] = new_estimated_budget
             st.session_state["actual_budgets"][idx] = new_actual_budget
             st.session_state["notes"][idx] = new_note
+            st.session_state["paid_by"][idx] = new_paid_by
             save_data(
                 st.session_state["categories"],
                 st.session_state["estimated_budgets"],
                 st.session_state["actual_budgets"],
                 st.session_state["notes"],
+                st.session_state["paid_by"],
             )
 
             # Remove the current category
@@ -261,11 +276,13 @@ def wedding_budget_app():
                 del st.session_state["estimated_budgets"][idx]
                 del st.session_state["actual_budgets"][idx]
                 del st.session_state["notes"][idx]
+                del st.session_state["paid_by"][idx]
                 save_data(
                     st.session_state["categories"],
                     st.session_state["estimated_budgets"],
                     st.session_state["actual_budgets"],
                     st.session_state["notes"],
+                    st.session_state["paid_by"],
                 )
                 st.success(f"Categoria '{category}' rimossa con successo!")
                 trigger_rerun()  # Refresh the app

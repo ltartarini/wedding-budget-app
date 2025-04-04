@@ -10,20 +10,15 @@ from dotenv import load_dotenv
 from auth import Authenticator
 
 # Google OAuth credentials
-ALLOWED_USERS = st.secrets["google_oauth_credentials"]["allowed_users"]
-os.environ['ALLOWED_USERS'] = ALLOWED_USERS
+os.environ['ALLOWED_USERS'] = st.secrets["google_oauth_credentials"]["allowed_users"]
 GOOGLE_CLIENT_ID = st.secrets["google_oauth_credentials"]["google_client_id"]
 GOOGLE_CLIENT_SECRET = st.secrets["google_oauth_credentials"]["google_client_secret"]
-REDIRECT_URI = st.secrets["google_oauth_credentials"]["redirect_uri"]
-os.environ['REDIRECT_URI'] = REDIRECT_URI
-TOKEN_KEY = st.secrets["google_oauth_credentials"]["token_key"]
-os.environ['TOKEN_KEY'] = TOKEN_KEY
+os.environ['REDIRECT_URI'] = st.secrets["google_oauth_credentials"]["redirect_uri"]
+os.environ['TOKEN_KEY'] = st.secrets["google_oauth_credentials"]["token_key"]
 
 load_dotenv()
 
-# emails of users that are allowed to login
 allowed_users = os.getenv("ALLOWED_USERS").split(",")
-
 redirect_uri = os.environ.get("REDIRECT_URI", "http://localhost:8501/")
 
 # File path to store categories and values in JSON format

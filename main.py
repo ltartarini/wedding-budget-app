@@ -8,6 +8,8 @@ import webbrowser
 from dotenv import load_dotenv
 from auth import Authenticator
 from cryptography.fernet import Fernet
+from google.cloud import storage
+from google.oauth2.service_account import Credentials
 
 # Google OAuth credentials
 os.environ['ALLOWED_USERS'] = st.secrets["google_oauth_credentials"]["allowed_users"]
@@ -48,6 +50,31 @@ ENCRYPTION_KEY = st.secrets["encryption"]["key"]
 # Initialize Fernet with the encryption key
 fernet = Fernet(ENCRYPTION_KEY.encode())
 
+# Construct the service account key dictionary from st.secrets
+service_account_info = {
+    "type": st.secrets["google_credentials"]["type"],
+    "project_id": st.secrets["google_credentials"]["project_id"],
+    "private_key_id": st.secrets["google_credentials"]["private_key_id"],
+    "private_key": st.secrets["google_credentials"]["private_key"].replace("\\n", "\n"),
+    "client_email": st.secrets["google_credentials"]["client_email"],
+    "client_id": st.secrets["google_credentials"]["client_id"],
+    "auth_uri": st.secrets["google_credentials"]["auth_uri"],
+    "token_uri": st.secrets["google_credentials"]["token_uri"],
+    "auth_provider_x509_cert_url": st.secrets["google_credentials"]["auth_provider_x509_cert_url"],
+    "client_x509_cert_url": st.secrets["google_credentials"]["client_x509_cert_url"]
+}
+
+# Create credentials from the service account key
+credentials = Credentials.from_service_account_info(service_account_info)
+storage_client = storage.Client(credentials=credentials, project=service_account_info["project_id"])
+
+# Initialize the Google Cloud Storage client
+GCS_BUCKET_NAME = st.secrets["gcs"]["bucket_name"]
+GCS_FILE_NAME = st.secrets["gcs"]["data.json"]
+
+bucket = storage_client.bucket(GCS_BUCKET_NAME)
+blob = bucket.blob(GCS_FILE_NAME)
+
 # Function to encrypt data
 def encrypt_data(data):
     json_data = json.dumps(data).encode("utf-8")
@@ -61,26 +88,21 @@ def decrypt_data(encrypted_data):
 
 # Function to load data from the encrypted JSON file
 def load_data():
-    if os.path.exists(FILE_PATH):
-        with open(FILE_PATH, "rb") as file:
-            encrypted_data = file.read()
-            if not encrypted_data:  # Handle empty file
-                st.warning("Il file è vuoto. Inizializzazione dei dati.")
-                return [], [], [], []
-            try:
-                data = decrypt_data(encrypted_data)
-                categories = data.get("categories", [])
-                estimated_budgets = [int(budget) for budget in data.get("estimated_budgets", [])]
-                actual_budgets = [int(budget) for budget in data.get("actual_budgets", [])]
-                notes = data.get("notes", [])
-                return categories, estimated_budgets, actual_budgets, notes
-            except json.JSONDecodeError:
-                st.error("Errore durante la lettura del file JSON. Il file potrebbe essere corrotto.")
-                return [], [], [], []
-            except Exception as e:
-                st.error(f"Errore durante la decrittazione del file: {e}")
-                return [], [], [], []
-    else:
+    try:
+        # Check if the file exists in GCS
+        if blob.exists():
+            encrypted_data = blob.download_as_bytes()
+            data = decrypt_data(encrypted_data)
+            categories = data.get("categories", [])
+            estimated_budgets = [int(budget) for budget in data.get("estimated_budgets", [])]
+            actual_budgets = [int(budget) for budget in data.get("actual_budgets", [])]
+            notes = data.get("notes", [])
+            return categories, estimated_budgets, actual_budgets, notes
+        else:
+            st.warning("No data found in GCS. Initializing empty data.")
+            return [], [], [], []
+    except Exception as e:
+        st.error(f"Error loading data from GCS: {e}")
         return [], [], [], []
 
 # Function to save data to the encrypted JSON file
@@ -92,8 +114,13 @@ def save_data(categories, estimated_budgets, actual_budgets, notes):
         "notes": notes,
     }
     encrypted_data = encrypt_data(data)
-    with open(FILE_PATH, "wb") as file:
-        file.write(encrypted_data)
+
+    # Upload the encrypted data to GCS
+    try:
+        blob.upload_from_string(encrypted_data)
+        st.success("Data saved to Google Cloud Storage successfully.")
+    except Exception as e:
+        st.error(f"Error saving data to GCS: {e}")
 
 # Function to trigger a rerun by modifying a dummy session state variable
 def trigger_rerun():

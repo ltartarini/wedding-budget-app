@@ -181,6 +181,10 @@ def wedding_budget_app():
         st.warning("Effettua il login per accedere all'app.")
         return
 
+    # Initialize the refresh variable
+    if "refresh" not in st.session_state:
+        st.session_state["refresh"] = False
+
     # Load data from JSON file if available
     categories, estimated_budgets, actual_budgets, notes, paid_by, payment_done = load_data()
 
@@ -346,7 +350,9 @@ def wedding_budget_app():
                     st.session_state["payment_done"],
                 )
                 st.success(f"Categoria '{category}' rimossa con successo!")
-                st.experimental_rerun()  # Refresh the app
+
+                # Trigger a refresh by toggling the refresh variable
+                st.session_state["refresh"] = not st.session_state.get("refresh", False)
 
     else:
         st.write("Nessuna categoria aggiunta ancora.")

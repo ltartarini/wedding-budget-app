@@ -107,20 +107,29 @@ def load_data():
 
 # Function to save data to the encrypted JSON file
 def save_data(categories, estimated_budgets, actual_budgets, notes):
+    """
+    Save the data to the encrypted JSON file in GCS.
+    """
     data = {
         "categories": categories,
         "estimated_budgets": estimated_budgets,
         "actual_budgets": actual_budgets,
         "notes": notes,
     }
-    encrypted_data = encrypt_data(data)
-
-    # Upload the encrypted data to GCS
     try:
-        blob.upload_from_string(encrypted_data)
+        # Encrypt the data
+        encrypted_data = encrypt_data(data)
+
+        # Debugging: Log the data being saved
+        print("Saving data to GCS:")
+        print(json.dumps(data, indent=4))
+
+        # Upload the encrypted data to GCS
+        blob.upload_from_string(encrypted_data, content_type="application/octet-stream")
         st.success("Data saved to Google Cloud Storage successfully.")
     except Exception as e:
         st.error(f"Error saving data to GCS: {e}")
+        print(f"Error saving data to GCS: {e}")
 
 # Function to trigger a rerun by modifying a dummy session state variable
 def trigger_rerun():

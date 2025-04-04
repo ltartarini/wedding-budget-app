@@ -152,6 +152,13 @@ def export_to_csv():
 def wedding_budget_app():
     st.title("Pianificatore Budget Matrimonio")
 
+    # Logout button
+    if st.button("Logout"):
+        # Clear session state and redirect to login
+        for key in st.session_state.keys():
+            del st.session_state[key]
+        st.experimental_rerun()
+
     if not st.session_state.get("connected", False):
         st.warning("Effettua il login per accedere all'app.")
         return

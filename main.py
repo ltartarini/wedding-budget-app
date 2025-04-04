@@ -136,12 +136,29 @@ def wedding_budget_app():
         # Allow editing and removing of categories
         for idx, category in enumerate(st.session_state['categories']):
             st.write(f"Modifica per '{category}':")
-            new_actual_budget = st.number_input(
-                f"Nuovo Budget Reale (€) per '{category}'", min_value=0, value=st.session_state['actual_budgets'][idx]
+            
+            # Editable fields for estimated budget, actual budget, and notes
+            new_estimated_budget = st.number_input(
+                f"Nuovo Budget Stimato (€) per '{category}'", 
+                min_value=0, 
+                value=st.session_state['estimated_budgets'][idx], 
+                key=f"estimated_budget_{idx}"
             )
-            new_note = st.text_input(f"Nuove Note per '{category}'", value=st.session_state['notes'][idx])
+            new_actual_budget = st.number_input(
+                f"Nuovo Budget Reale (€) per '{category}'", 
+                min_value=0, 
+                value=st.session_state['actual_budgets'][idx], 
+                key=f"actual_budget_{idx}"
+            )
+            new_note = st.text_input(
+                f"Nuove Note per '{category}'", 
+                value=st.session_state['notes'][idx], 
+                key=f"note_{idx}"
+            )
 
+            # Save changes for the current category
             if st.button(f"Salva Modifiche per '{category}'", key=f"save_{category}"):
+                st.session_state['estimated_budgets'][idx] = new_estimated_budget
                 st.session_state['actual_budgets'][idx] = new_actual_budget
                 st.session_state['notes'][idx] = new_note
                 save_data(
@@ -151,6 +168,8 @@ def wedding_budget_app():
                     st.session_state['notes']
                 )
                 st.success(f"Modifiche salvate per '{category}'!")
+                # Refresh the app to update the table
+                st.rerun()
 
             # Add a button to remove the category
             if st.button(f"Rimuovi '{category}'", key=f"remove_{category}"):
@@ -165,7 +184,10 @@ def wedding_budget_app():
                     st.session_state['notes']
                 )
                 st.success(f"Categoria '{category}' rimossa con successo!")
-                st.experimental_rerun()  # Refresh the app to update the table
+                # Trigger a refresh by modifying a dummy session state variable
+                if "refresh" not in st.session_state:
+                    st.session_state["refresh"] = 0
+                st.session_state["refresh"] += 1
 
     else:
         st.write("Nessuna categoria aggiunta ancora.")
@@ -185,6 +207,12 @@ def wedding_budget_app():
         )
         ax.set_title("Distribuzione Budget Matrimonio")
         st.pyplot(fig)
+
+    # Trigger a refresh by modifying a dummy session state variable
+    if "refresh" not in st.session_state:
+        st.session_state["refresh"] = 0
+
+    st.session_state["refresh"] += 1
 
 # Run the app
 wedding_budget_app()

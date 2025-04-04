@@ -5,9 +5,9 @@ import json
 import os
 import math
 import webbrowser
-import os
 from dotenv import load_dotenv
 from auth import Authenticator
+from cryptography.fernet import Fernet
 
 # Google OAuth credentials
 os.environ['ALLOWED_USERS'] = st.secrets["google_oauth_credentials"]["allowed_users"]
@@ -42,124 +42,207 @@ authenticator = Authenticator(
 authenticator.check_auth()
 authenticator.login()
 
-# Function to load data from JSON
+# Load the encryption key from secrets or environment variables
+ENCRYPTION_KEY = st.secrets["encryption"]["key"]
+
+# Initialize Fernet with the encryption key
+fernet = Fernet(ENCRYPTION_KEY.encode())
+
+# Function to encrypt data
+def encrypt_data(data):
+    json_data = json.dumps(data).encode("utf-8")
+    encrypted_data = fernet.encrypt(json_data)
+    return encrypted_data
+
+# Function to decrypt data
+def decrypt_data(encrypted_data):
+    decrypted_data = fernet.decrypt(encrypted_data).decode("utf-8")
+    return json.loads(decrypted_data)
+
+# Function to load data from the encrypted JSON file
 def load_data():
     if os.path.exists(FILE_PATH):
-        with open(FILE_PATH, mode='r') as file:
-            data = json.load(file)
-            categories = data.get('categories', [])
-            estimated_budgets = [int(budget) for budget in data.get('estimated_budgets', [])]
-            actual_budgets = [int(budget) for budget in data.get('actual_budgets', [])]
-            notes = data.get('notes', [])
-            return categories, estimated_budgets, actual_budgets, notes
+        with open(FILE_PATH, "rb") as file:
+            encrypted_data = file.read()
+            try:
+                data = decrypt_data(encrypted_data)
+                categories = data.get("categories", [])
+                estimated_budgets = [int(budget) for budget in data.get("estimated_budgets", [])]
+                actual_budgets = [int(budget) for budget in data.get("actual_budgets", [])]
+                notes = data.get("notes", [])
+                return categories, estimated_budgets, actual_budgets, notes
+            except Exception as e:
+                st.error("Errore durante la decrittazione del file. Verifica la chiave segreta.")
+                return [], [], [], []
     else:
         return [], [], [], []
 
-# Function to save data to JSON
+# Function to save data to the encrypted JSON file
 def save_data(categories, estimated_budgets, actual_budgets, notes):
     data = {
-        'categories': categories,
-        'estimated_budgets': estimated_budgets,
-        'actual_budgets': actual_budgets,
-        'notes': notes
+        "categories": categories,
+        "estimated_budgets": estimated_budgets,
+        "actual_budgets": actual_budgets,
+        "notes": notes,
     }
-    with open(FILE_PATH, mode='w') as file:
-        json.dump(data, file, indent=4)
+    encrypted_data = encrypt_data(data)
+    with open(FILE_PATH, "wb") as file:
+        file.write(encrypted_data)
+
+# Function to trigger a rerun by modifying a dummy session state variable
+def trigger_rerun():
+    if "rerun" not in st.session_state:
+        st.session_state["rerun"] = 0
+    st.session_state["rerun"] += 1
+
+# Function to export the table as a CSV file
+def export_to_csv():
+    data = {
+        "Categoria": st.session_state["categories"],
+        "Budget Stimato (€)": st.session_state["estimated_budgets"],
+        "Budget Reale (€)": st.session_state["actual_budgets"],
+        "Note": st.session_state["notes"],
+    }
+    df = pd.DataFrame(data)
+    return df.to_csv(index=False).encode("utf-8")
 
 # Function to display the app
 def wedding_budget_app():
     st.title("Pianificatore Budget Matrimonio")
 
-    if not st.session_state["connected"]:
-        st.write("You have to log in first...")
+    if not st.session_state.get("connected", False):
+        st.warning("Effettua il login per accedere all'app.")
+        return
 
-    if st.session_state["connected"]:
-        st.write(f"Welcome! {st.session_state['user_info'].get('email')}")
-        if st.button("Log out"):
-            authenticator.logout()
+    # Load data from JSON file if available
+    categories, estimated_budgets, actual_budgets, notes = load_data()
 
-        # Load data from JSON file if available
-        categories, estimated_budgets, actual_budgets, notes = load_data()
+    # Store data in session state for editing
+    st.session_state["categories"] = categories
+    st.session_state["estimated_budgets"] = estimated_budgets
+    st.session_state["actual_budgets"] = actual_budgets
+    st.session_state["notes"] = notes
 
-        # Store data in session state for editing
-        st.session_state['categories'] = categories
-        st.session_state['estimated_budgets'] = estimated_budgets
-        st.session_state['actual_budgets'] = actual_budgets
-        st.session_state['notes'] = notes
+    # Input for custom category name and budget
+    st.subheader("Aggiungi una Categoria Personalizzata")
+    new_category = st.text_input("Nome Categoria")
+    new_estimated_budget = st.number_input("Budget Stimato (€)", min_value=0, value=0)
+    new_actual_budget = st.number_input("Budget Reale (€)", min_value=0, value=0)
+    new_note = st.text_input("Note")
 
-        # Input for custom category name and budget
-        st.subheader("Aggiungi una Categoria Personalizzata")
-        new_category = st.text_input("Nome Categoria")
-        new_estimated_budget = st.number_input(
-            "Budget Stimato (€)", min_value=0, value=int(st.session_state.get('new_estimated_budget', 0))
+    # Add the category if fields are filled
+    if st.button("Aggiungi Categoria"):
+        if new_category and new_estimated_budget >= 0:
+            st.session_state["categories"].append(new_category)
+            st.session_state["estimated_budgets"].append(new_estimated_budget)
+            st.session_state["actual_budgets"].append(new_actual_budget)
+            st.session_state["notes"].append(new_note)
+            save_data(
+                st.session_state["categories"],
+                st.session_state["estimated_budgets"],
+                st.session_state["actual_budgets"],
+                st.session_state["notes"],
+            )
+            st.success(f"Categoria '{new_category}' aggiunta con successo!")
+            trigger_rerun()  # Refresh the app
+
+    # Display current categories and budgets in a table
+    st.subheader("Categorie Aggiunte")
+    if len(st.session_state["categories"]) > 0:
+        # Create a DataFrame for the table
+        data = {
+            "Categoria": st.session_state["categories"],
+            "Budget Stimato (€)": st.session_state["estimated_budgets"],
+            "Budget Reale (€)": st.session_state["actual_budgets"],
+            "Note": st.session_state["notes"],
+        }
+        df = pd.DataFrame(data)
+        st.table(df)  # Display the table
+
+        # Add a download button to export the table as a CSV file
+        csv_data = export_to_csv()
+        st.download_button(
+            label="Esporta come CSV",
+            data=csv_data,
+            file_name="budget_table.csv",
+            mime="text/csv",
         )
-        new_actual_budget = st.number_input(
-            "Budget Reale (€)", min_value=0, value=int(st.session_state.get('new_actual_budget', 0))
-        )
-        new_note = st.text_input("Note")
 
-        # Add the category if fields are filled
-        if st.button("Aggiungi Categoria"):
-            if new_category and new_estimated_budget >= 0:
-                st.session_state['categories'].append(new_category)
-                st.session_state['estimated_budgets'].append(new_estimated_budget)
-                st.session_state['actual_budgets'].append(new_actual_budget)
-                st.session_state['notes'].append(new_note)
+        # Editable fields for each category
+        for idx, category in enumerate(st.session_state["categories"]):
+            st.write(f"**Modifica Categoria {idx + 1}: {category}**")
+
+            new_category_name = st.text_input(
+                f"Modifica Nome Categoria {idx + 1}",
+                value=category,
+                key=f"category_{idx}",
+            )
+            new_estimated_budget = st.number_input(
+                f"Modifica Budget Stimato (€) per {category}",
+                min_value=0,
+                value=st.session_state["estimated_budgets"][idx],
+                key=f"estimated_budget_{idx}",
+            )
+            new_actual_budget = st.number_input(
+                f"Modifica Budget Reale (€) per {category}",
+                min_value=0,
+                value=st.session_state["actual_budgets"][idx],
+                key=f"actual_budget_{idx}",
+            )
+            new_note = st.text_input(
+                f"Modifica Note per {category}",
+                value=st.session_state["notes"][idx],
+                key=f"note_{idx}",
+            )
+
+            # Save changes for the current category
+            if st.button(f"Salva Modifiche per {category}", key=f"save_{idx}"):
+                st.session_state["categories"][idx] = new_category_name
+                st.session_state["estimated_budgets"][idx] = new_estimated_budget
+                st.session_state["actual_budgets"][idx] = new_actual_budget
+                st.session_state["notes"][idx] = new_note
                 save_data(
-                    st.session_state['categories'],
-                    st.session_state['estimated_budgets'],
-                    st.session_state['actual_budgets'],
-                    st.session_state['notes']
+                    st.session_state["categories"],
+                    st.session_state["estimated_budgets"],
+                    st.session_state["actual_budgets"],
+                    st.session_state["notes"],
                 )
-                st.success(f"Categoria '{new_category}' aggiunta con successo!")
+                st.success(f"Modifiche salvate per '{new_category_name}'!")
+                trigger_rerun()  # Refresh the app
 
-        # Display current categories and budgets in a table
-        st.subheader("Categorie Aggiunte")
-        if len(st.session_state['categories']) > 0:
-            # Calculate differences and percentages
-            differences = [
-                float(actual) - float(estimated)
-                for actual, estimated in zip(st.session_state['actual_budgets'], st.session_state['estimated_budgets'])
-            ]
-            total_budget = sum(float(budget) for budget in st.session_state['estimated_budgets'])
-            percentages = [
-                (float(estimated) / total_budget * 100) if total_budget > 0 else 0
-                for estimated in st.session_state['estimated_budgets']
-            ]
-
-            # Create a DataFrame for the table
-            data = {
-                "Categoria": st.session_state['categories'],
-                "Budget Stimato (€)": st.session_state['estimated_budgets'],
-                "Budget Reale (€)": st.session_state['actual_budgets'],
-                "Differenza (€)": differences,
-                "% sul Totale": [f"{p:.2f}%" for p in percentages],
-                "Note": st.session_state['notes']
-            }
-            df = pd.DataFrame(data)
-            st.table(df)  # Display the table
-
-        else:
-            st.write("Nessuna categoria aggiunta ancora.")
+            # Remove the current category
+            if st.button(f"Rimuovi {category}", key=f"remove_{idx}"):
+                del st.session_state["categories"][idx]
+                del st.session_state["estimated_budgets"][idx]
+                del st.session_state["actual_budgets"][idx]
+                del st.session_state["notes"][idx]
+                save_data(
+                    st.session_state["categories"],
+                    st.session_state["estimated_budgets"],
+                    st.session_state["actual_budgets"],
+                    st.session_state["notes"],
+                )
+                st.success(f"Categoria '{category}' rimossa con successo!")
+                trigger_rerun()  # Refresh the app
 
         # Calculate total budget
-        total_budget = sum(st.session_state['estimated_budgets'])
+        total_budget = sum(st.session_state["estimated_budgets"])
         st.subheader(f"Totale Budget Stimato: € {total_budget:,.2f}")
 
         # Create pie chart with the current categories and values
-        if len(st.session_state['categories']) > 0:
+        if len(st.session_state["categories"]) > 0:
             fig, ax = plt.subplots(figsize=(8, 8))
             ax.pie(
-                st.session_state['estimated_budgets'],
-                labels=st.session_state['categories'],
-                autopct='%1.1f%%',
-                startangle=140
+                st.session_state["estimated_budgets"],
+                labels=st.session_state["categories"],
+                autopct="%1.1f%%",
+                startangle=140,
             )
             ax.set_title("Distribuzione Budget Matrimonio")
             st.pyplot(fig)
 
     else:
-        st.warning("Effettua il login per accedere all'app.")
+        st.write("Nessuna categoria aggiunta ancora.")
 
 # Run the app
 wedding_budget_app()

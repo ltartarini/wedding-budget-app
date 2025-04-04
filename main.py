@@ -150,7 +150,6 @@ def wedding_budget_app():
                 st.session_state["notes"],
             )
             st.success(f"Categoria '{new_category}' aggiunta con successo!")
-            trigger_rerun()  # Refresh the app
 
     # Display current categories and budgets in a table
     st.subheader("Categorie Aggiunte")
@@ -201,20 +200,17 @@ def wedding_budget_app():
                 key=f"note_{idx}",
             )
 
-            # Save changes for the current category
-            if st.button(f"Salva Modifiche per {category}", key=f"save_{idx}"):
-                st.session_state["categories"][idx] = new_category_name
-                st.session_state["estimated_budgets"][idx] = new_estimated_budget
-                st.session_state["actual_budgets"][idx] = new_actual_budget
-                st.session_state["notes"][idx] = new_note
-                save_data(
-                    st.session_state["categories"],
-                    st.session_state["estimated_budgets"],
-                    st.session_state["actual_budgets"],
-                    st.session_state["notes"],
-                )
-                st.success(f"Modifiche salvate per '{new_category_name}'!")
-                trigger_rerun()  # Refresh the app
+            # Automatically save changes when fields are modified
+            st.session_state["categories"][idx] = new_category_name
+            st.session_state["estimated_budgets"][idx] = new_estimated_budget
+            st.session_state["actual_budgets"][idx] = new_actual_budget
+            st.session_state["notes"][idx] = new_note
+            save_data(
+                st.session_state["categories"],
+                st.session_state["estimated_budgets"],
+                st.session_state["actual_budgets"],
+                st.session_state["notes"],
+            )
 
             # Remove the current category
             if st.button(f"Rimuovi {category}", key=f"remove_{idx}"):
